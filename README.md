@@ -1,5 +1,4 @@
 # microwave
-A CREST based map tool.
 
 This is an (experimental) project to create a new [CREST](https://eveonline-third-party-documentation.readthedocs.io/en/latest/) based wormhole mapper. Eventually including a k-space map and fleet tracking options.
 
