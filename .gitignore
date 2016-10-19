@@ -1,13 +1,13 @@
 # ---- project specific ignores ----
 
 # folder used for sqlite files, static data will have to be loaded from SDE on project deployment
-src/db
+db/
 
 # the SDE source files
-src/sde
+sde/
 
 # app credentials (CREST login information and other stuff that should never be published)
-src/credentials*
+.credentials
 
 # ---- basic node.js ignores ----
 
