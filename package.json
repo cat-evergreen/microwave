@@ -17,7 +17,10 @@
   },
   "homepage": "https://github.com/cat-evergreen/microwave#readme",
   "dependencies": {
+    "connect-sqlite3": "^0.9.8",
     "express": "^4.14.0",
+    "express-session": "^1.14.1",
+    "sqlite3": "^3.1.6",
     "yaml-js": "^0.1.4"
   }
 }

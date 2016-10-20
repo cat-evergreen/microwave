@@ -1,4 +1,6 @@
-var express	= require('express');
+var CONNECT	= require('connect-sqlite3');
+var EXPRESS	= require('express');
+var SESSION	= require('express-session');
 var FS 		= require('fs');
 var HTTPS	= require('https');
 var URL		= require('url');
@@ -10,6 +12,9 @@ var YAML 	= require('yaml-js');
 var CREDENTIALS_FILENAME = '.credentials';
 var O_AUTHORIZE_PATH = '/oauth/authorize';
 var O_TOKEN_PATH = '/oauth/token';
+var O_VERIFY_PATH = '/oauth/verify';
+var DB_DIR = './db';
+var SESSIONS_DB = 'sessions';
 
 var CREST_SCOPES = [
 	'characterAccountRead',
@@ -107,6 +112,11 @@ if (typeof creds.client_id == 'string' || typeof creds.client_id == 'number'){
 } else {
 	throw 'Invalid or missing client_id "' + creds.client_id + '" in credentials file.';
 }
+if (typeof creds.cookie_secret == 'string' || typeof creds.cookie_secret == 'number') {
+	CREDENTIALS.cookie_secret = creds.cookie_secret;
+} else {
+	throw 'Invalid or missing cookie_secret "' + creds.cookie_secret + '" in credentials file.';
+}
 if (typeof creds.redirect_uri == 'string') {
 	CREDENTIALS.redirect_uri = creds.redirect_uri;
 } else {
@@ -122,21 +132,44 @@ for (var i = 0; i < configUrls.length; i++) {
 		CREDENTIALS[confUrl] = creds[confUrl];
 	}
 }
+delete creds;
 
-var app = express();
+var app = EXPRESS();
+var SqliteStore = CONNECT(SESSION);
+app.use(SESSION({
+	resave : false,
+	saveUninitialized : false,
+	store : new SqliteStore({db : SESSIONS_DB, dir : DB_DIR}),
+	secret : CREDENTIALS.cookie_secret,
+	cookie: { maxAge: 7 * 24 * 60 * 60 * 1000 } // 1 week
+}));
 
-
-var MY_STATE = 198374; // TODO handle states with session id hashes
 /* ---- server callbacks --- */
 app.get('/', function(req, res) {
-	res.send('<a href="' + getCrestLoginUrl(MY_STATE) + '">Log into EvE</a>'+
-	'<br><a href="/char/">Character Info</a>'+
-	'<br><a href="/read/location/">Character Location</a>'); // TODO
+	var sess = req.session;
+	var page = '<br><a href="/char/">Character Info</a>'
+		+ '<br><a href="/read/location/">Character Location</a>'
+		+ '<br><a href="/logout/">Logout</a>';
+	if (sess.auth == undefined) {
+		sess.auth = {
+			state : btoa(sess.id)
+		}
+		page = '<a href="' + getCrestLoginUrl(sess.auth.state) + '">Log into EvE</a>' + page;
+	}
+	res.send(page); // TODO
+});
+
+app.get('/logout', function(req, res) {
+	req.session.destroy();
+	res.send('Goodbye'); // TODO
 });
 
 app.get('/crest/', function(req, res) {
-	if (MY_STATE != req.query.state) { // TODO handle states with session id hashes
-		res.send('Returned state "' + req.query.state + '" did not match internal state "' + MY_STATE + '".');
+	var sess = req.session;
+	console.info('session before auth')
+	console.info(sess)
+	if (sess.auth.state != req.query.state) {
+		res.send('Returned state "' + req.query.state + '" did not match internal state "' + sess.auth.state + '".');
 	} else {
 		var loginUrl = URL.parse(CREDENTIALS.login_url);
 		var options = {
@@ -154,10 +187,10 @@ app.get('/crest/', function(req, res) {
 			response.on('data', function (c) { data += c; });
 			response.on('end', function () {
 				var answer = JSON.parse(data);
-				app.locals.authData = { // TODO use session storage instead
-					access : answer['access_token'],
-					refresh : answer['refresh_token']
-				}
+				sess.auth.access = answer['access_token'];
+				sess.auth.refresh = answer['refresh_token'];
+				console.info('session after auth')
+				console.info(sess)
 				res.send('Login successfull<br><a href="/">Return</a>'); // TODO
 			});
 		};
@@ -172,33 +205,40 @@ app.get('/crest/', function(req, res) {
 });
 
 app.get('/char/', function(req, res) {
-	var loginUrl = URL.parse(CREDENTIALS.login_url);
-	var options = {
-		method : 'GET',
-		host : loginUrl.host,
-		path : '/oauth/verify',
-		headers : {
-			'Host' : loginUrl.host,
-			'Authorization' : 'Bearer ' + app.locals.authData.access // TODO use session storage instead
-		}
-	};
-	var callback = function(response) {
-		var data = '';
-		response.on('data', function (c) { data += c; });
-		response.on('end', function () {
-			var answer = JSON.parse(data);
-			app.locals.charid = answer['CharacterID'];
-			app.locals.charname = answer['CharacterName'];
-			res.send(data); // TODO
-		});
-	};
-	var request = HTTPS.request(options, callback);
-	request.end();
+	var sess = req.session;
+	console.info('session before char')
+	console.info(sess)
+	if (sess.charname != undefined) {
+		res.send('Hello ' + sess.charname); // TODO
+	} else {
+		var loginUrl = URL.parse(CREDENTIALS.login_url);
+		var options = {
+			method : 'GET',
+			host : loginUrl.host,
+			path : O_VERIFY_PATH,
+			headers : {
+				'Host' : loginUrl.host,
+				'Authorization' : 'Bearer ' + sess.auth.access
+			}
+		};
+		var callback = function(response) {
+			var data = '';
+			response.on('data', function (c) { data += c; });
+			response.on('end', function () {
+				var answer = JSON.parse(data);
+				sess.charid = answer['CharacterID'];
+				sess.charname = answer['CharacterName'];
+				res.send('Hello ' + sess.charname); // TODO
+			});
+		};
+		var request = HTTPS.request(options, callback);
+		request.end();
+	}
 });
 
 
 /* ---- test callbacks ---- */
-function getCrestReadOptions(requestUrl) {
+function getCrestReadOptions(requestUrl, sess) {
 	var parsedUrl = URL.parse(requestUrl);
 	return {
 		method : 'GET',
@@ -206,7 +246,7 @@ function getCrestReadOptions(requestUrl) {
 		path : parsedUrl.pathname,
 		headers : {
 			'Host' : parsedUrl.host,
-			'Authorization' : 'Bearer ' + app.locals.authData.access
+			'Authorization' : 'Bearer ' + sess.auth.access
 		}
 	};
 }
@@ -216,17 +256,19 @@ var itemReadUrls = { // TODO use CREST walking to get those urls
 	'chars' : 'https://crest-tq.eveonline.com/characters/{charid}/'
 }
 app.get('/read/:item', function(req, res) {
+	var sess = req.session;
+	console.info('session before read')
+	console.info(sess)
 	var item = req.params.item;
 	var readUrl = itemReadUrls[item];
 	if (typeof readUrl == 'string') {
-		readUrl = readUrl.replace('{charid}', app.locals.charid); // TODO use CREST walking to get those urls
-		var options = getCrestReadOptions(readUrl);
+		readUrl = readUrl.replace('{charid}', sess.charid); // TODO use CREST walking to get those urls
+		var options = getCrestReadOptions(readUrl, sess);
 		var callback = function(response) {
 			var data = '';
 			response.on('data', function (c) { data += c; });
 			response.on('end', function () {
 				var answer = JSON.parse(data);
-				console.info(answer);
 				res.send(data);
 			});
 		};
