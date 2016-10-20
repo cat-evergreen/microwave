@@ -126,18 +126,18 @@ for (var i = 0; i < configUrls.length; i++) {
 var app = express();
 
 
+var MY_STATE = 198374; // TODO handle states with session id hashes
 /* ---- server callbacks --- */
 app.get('/', function(req, res) {
-	var state = 198374; // TODO handle states with session id hashes
-	res.send('<a href="' + getCrestLoginUrl(198374) + '">Log into EvE</a>'+
+	res.send('<a href="' + getCrestLoginUrl(MY_STATE) + '">Log into EvE</a>'+
 	'<br><a href="/char/">Character Info</a>'+
 	'<br><a href="/read/location/">Character Location</a>'); // TODO
 });
 
 app.get('/crest/', function(req, res) {
-//	if (myState != req.query.state) { // TODO handle states with session id hashes
-//		res.send('Returned state "' + req.query.state + '" did not match internal state "' + myState + '".');
-//	} else {
+	if (MY_STATE != req.query.state) { // TODO handle states with session id hashes
+		res.send('Returned state "' + req.query.state + '" did not match internal state "' + MY_STATE + '".');
+	} else {
 		var loginUrl = URL.parse(CREDENTIALS.login_url);
 		var options = {
 			method : 'POST',
@@ -168,7 +168,7 @@ app.get('/crest/', function(req, res) {
 		};
 		request.write(JSON.stringify(body));
 		request.end();
-//	}
+	}
 });
 
 app.get('/char/', function(req, res) {
