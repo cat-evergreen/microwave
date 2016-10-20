@@ -5,9 +5,9 @@ This is an (experimental) project to create a new [CREST](https://eveonline-thir
 ### Roadmap:
 (subject to change)
 
-* **v0.?** import SDE to internal db and have a server provide a page to display (static) j-system info
-
-* **v0.?** have CREST auth up, so users can login and get j-system info for their current system
+* **v0.0.1** User location based (j-)system info (Which class of wormhole am I in?)
+    * import SDE to internal db and have a server provide a page to display (static) (j-)system info
+    * have CREST auth up, so users can login and get j-system info for their current location
 
 * **v0.?** track connections between j-systems via user tracking and display a basic map (node graph) of such connected systems
 
