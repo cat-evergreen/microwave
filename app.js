@@ -6,7 +6,8 @@ var HTTPS	= require('https');
 var URL		= require('url');
 var YAML 	= require('yaml-js');
 
-
+var DB = require('./app_modules/database.js');
+var UTIL = require('./app_modules/utils.js');
 
 /* ---- global settings --- */
 var CREDENTIALS_FILENAME = '.credentials';
@@ -74,14 +75,6 @@ var CREDENTIALS = {
 };
 
 
-/* ---- utility functions ---- */
-function btoa(str) {
-	return new Buffer(str.toString(), 'binary').toString('base64');
-}
-function atob(str) {
-	return new Buffer(str.toString(), 'base64').toString('binary');
-}
-
 
 /* ---- auth/crest functions ---- */
 function getCrestLoginUrl(state) {
@@ -98,6 +91,11 @@ function getCrestLoginUrl(state) {
 }
 
 
+/* ====== TEST STUFF ====== */
+DB.testDB();
+
+process.exit();
+
 /* ---- read credentials ---- */
 FS.accessSync(CREDENTIALS_FILENAME, FS.R_OK); // Do we need this or can we assume that readFileSync will throw the same errors?
 var creds = YAML.load(FS.readFileSync(CREDENTIALS_FILENAME));
@@ -105,7 +103,7 @@ if (typeof creds.client_id == 'string' || typeof creds.client_id == 'number'){
 	CREDENTIALS.client_id = creds.client_id;
 	if (typeof creds.client_secret == 'string' || typeof creds.client_secret == 'number') {
 		var auth = creds.client_id + ':' + creds.client_secret;
-		CREDENTIALS.authCode = btoa(auth);
+		CREDENTIALS.authCode = UTIL.btoa(auth);
 	} else {
 		throw 'Invalid or missing client_secret "' + creds.client_secret + '" in credentials file.';
 	}
@@ -152,7 +150,7 @@ app.get('/', function(req, res) {
 		+ '<br><a href="/logout/">Logout</a>';
 	if (sess.auth == undefined) {
 		sess.auth = {
-			state : btoa(sess.id)
+			state : UTIL.btoa(sess.id)
 		}
 		page = '<a href="' + getCrestLoginUrl(sess.auth.state) + '">Log into EvE</a>' + page;
 	}
