@@ -176,7 +176,8 @@ app.get('/crest/', function(req, res) {
 			path : O_TOKEN_PATH,
 			headers : {
 				'Host' : loginUrl.host,
-				'Authorization' : 'Basic ' + CREDENTIALS.authCode,
+				'Authorization' : 'Basic ' + CREDENTIALS.authCode, // TODO do we need the pure authCode somewhere else? 
+				// If not we can make a getAuthCode function that will precalc the whole string including "Basic "
 				'Content-Type': 'application/json'
 			}
 		};
